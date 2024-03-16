@@ -1,0 +1,171 @@
+{
+    "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+    "contentVersion": "1.0.0.0",
+    "parameters": {
+      "vmName": {
+        "type": "string",
+        "metadata": {
+          "description": "Name of the Linux VM."
+        }
+      },
+      "adminUsername": {
+        "type": "string",
+        "metadata": {
+          "description": "Username for the VM's administrator."
+        }
+      },
+      "adminPassword": {
+        "type": "securestring",
+        "metadata": {
+          "description": "Password for the VM's administrator."
+        }
+      },
+      "vmSize": {
+        "type": "string",
+        "defaultValue": "Standard_DS1_v2",
+        "metadata": {
+          "description": "Size of the VM."
+        }
+      },
+      "location": {
+        "type": "string",
+        "defaultValue": "[resourceGroup().location]",
+        "metadata": {
+          "description": "Location for the VM."
+        }
+      }
+    },
+    "variables": {
+      "networkInterfaceName": "[concat(parameters('vmName'), '-nic')]",
+      "publicIPAddressName": "[concat(parameters('vmName'), '-ip')]",
+      "virtualNetworkName": "[concat(parameters('vmName'), '-vnet')]",
+      "subnetName": "[concat(parameters('vmName'), '-subnet')]"
+    },
+    "resources": [
+      {
+        "type": "Microsoft.Network/publicIPAddresses",
+        "apiVersion": "2021-02-01",
+        "name": "[variables('publicIPAddressName')]",
+        "location": "[parameters('location')]",
+        "properties": {
+          "publicIPAllocationMethod": "Dynamic"
+        }
+      },
+      {
+        "type": "Microsoft.Network/virtualNetworks",
+        "apiVersion": "2021-02-01",
+        "name": "[variables('virtualNetworkName')]",
+        "location": "[parameters('location')]",
+        "properties": {
+          "addressSpace": {
+            "addressPrefixes": [
+              "10.0.0.0/16"
+            ]
+          },
+          "subnets": [
+            {
+              "name": "[variables('subnetName')]",
+              "properties": {
+                "addressPrefix": "10.0.0.0/24"
+              }
+            }
+          ]
+        }
+      },
+      {
+        "type": "Microsoft.Network/networkInterfaces",
+        "apiVersion": "2021-02-01",
+        "name": "[variables('networkInterfaceName')]",
+        "location": "[parameters('location')]",
+        "dependsOn": [
+          "[resourceId('Microsoft.Network/publicIPAddresses', variables('publicIPAddressName'))]",
+          "[resourceId('Microsoft.Network/virtualNetworks', variables('virtualNetworkName'))]"
+        ],
+        "properties": {
+          "ipConfigurations": [
+            {
+              "name": "ipconfig1",
+              "properties": {
+                "privateIPAllocationMethod": "Dynamic",
+                "publicIPAddress": {
+                  "id": "[resourceId('Microsoft.Network/publicIPAddresses', variables('publicIPAddressName'))]"
+                },
+                "subnet": {
+                  "id": "[concat(resourceId('Microsoft.Network/virtualNetworks', variables('virtualNetworkName')), '/subnets/', variables('subnetName'))]"
+                }
+              }
+            }
+          ]
+        }
+      },
+      {
+        "type": "Microsoft.Compute/virtualMachines",
+        "apiVersion": "2021-07-01",
+        "name": "[parameters('vmName')]",
+        "location": "[parameters('location')]",
+        "dependsOn": [
+          "[resourceId('Microsoft.Network/networkInterfaces', variables('networkInterfaceName'))]"
+        ],
+        "properties": {
+          "hardwareProfile": {
+            "vmSize": "[parameters('vmSize')]"
+          },
+          "osProfile": {
+            "computerName": "[parameters('vmName')]",
+            "adminUsername": "[parameters('adminUsername')]",
+            "adminPassword": "[parameters('adminPassword')]"
+          },
+          "storageProfile": {
+            "imageReference": {
+              "publisher": "Canonical",
+              "offer": "UbuntuServer",
+              "sku": "20.04-LTS",
+              "version": "latest"
+            },
+            "osDisk": {
+              "createOption": "FromImage"
+            }
+          },
+          "networkProfile": {
+            "networkInterfaces": [
+              {
+                "id": "[resourceId('Microsoft.Network/networkInterfaces', variables('networkInterfaceName'))]"
+              }
+            ]
+          }
+        }
+      }
+    ],
+    "outputs": {
+      "vmPublicIPAddress": {
+        "type": "string",
+        "value": "[reference(variables('publicIPAddressName')).ipAddress]"
+      },
+      "vmName": {
+        "type": "string",
+        "value": "[parameters('vmName')]"
+      },
+      "interfaceName": {
+        "type": "string",
+        "value": "[variables('networkInterfaceName')]"
+      }
+    }
+  }
+
+// the variables section is used to define reusable values that are constructed based on the parameter values provided during deployment. Let's break down each variable:
+//   networkInterfaceName:
+//       This variable defines the name for the network interface (NIC) that will be attached to the virtual machine.
+//       It uses the concat function to concatenate the VM name parameter (parameters('vmName')) with the suffix -nic.
+ //       For example, if the VM name parameter is myVM, then the value of this variable would be myVM-nic.
+//  publicIPAddressName:
+//      This variable defines the name for the public IP address resource that will be associated with the virtual machine.
+//     Similar to networkInterfaceName, it uses the concat function to append -ip to the VM name parameter.
+//     Following the previous example, if the VM name parameter is myVM, then the value of this variable would be myVM-ip.
+// virtualNetworkName:
+//     This variable defines the name for the virtual network (VNet) that will be created for the virtual machine.
+//     It also uses the concat function to concatenate the VM name parameter with the suffix -vnet.
+//      Continuing with the example, if the VM name parameter is myVM, then the value of this variable would be myVM-vnet.
+// subnetName:
+//    This variable defines the name for the subnet within the virtual network that the virtual machine will be connected to.
+//     Like the previous variables, it uses the concat function to combine the VM name parameter with the suffix -subnet.
+//     Using the example, if the VM name parameter is myVM, then the value of this variable would be myVM-subnet.  
